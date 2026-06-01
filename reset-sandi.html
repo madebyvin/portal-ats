@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Kata Sandi - Portal ATS</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: #e5e7eb; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; position: relative; }
+        
+        /* Dekorasi Kaca */
+        .shape { position: absolute; border-radius: 50%; filter: blur(60px); z-index: -1; }
+        .shape-1 { width: 400px; height: 400px; background: #d1d5db; top: -100px; left: -100px; }
+        .shape-2 { width: 300px; height: 300px; background: #ffffff; bottom: -50px; right: -50px; }
+        
+        /* Panel Utama */
+        .glass-panel { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); padding: 40px; width: 100%; max-width: 400px; z-index: 1; }
+        .login-header { text-align: center; margin-bottom: 30px; }
+        .login-header h2 { color: #111827; font-size: 28px; font-weight: 700; }
+        .login-header p { color: #6b7280; font-size: 14px; margin-top: 5px; }
+        
+        /* Input Form */
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; color: #374151; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+        .input-group input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid #d1d5db; background: rgba(255, 255, 255, 0.9); font-size: 14px; color: #111827; outline: none; transition: all 0.3s ease; }
+        .input-group input:focus { border-color: #111827; box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1); }
+        
+        /* Tombol */
+        .btn-dark { width: 100%; padding: 14px; border-radius: 12px; border: none; background-color: #111827; color: #ffffff; font-size: 16px; font-weight: 600; cursor: pointer; transition: background-color 0.3s ease; display: flex; justify-content: center; align-items: center; margin-top: 10px; }
+        .btn-dark:hover { background-color: #374151; }
+        .btn-dark:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        
+        .back-link { display: block; text-align: center; margin-top: 20px; font-size: 13px; color: #4b5563; text-decoration: none; font-weight: 500; transition: 0.3s; }
+        .back-link:hover { color: #111827; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+
+    <div class="glass-panel">
+        <div class="login-header">
+            <h2>Buat Sandi Baru</h2>
+            <p>Masukkan kata sandi baru untuk akun Anda</p>
+        </div>
+        
+        <div>
+            <div class="input-group">
+                <label for="password">Kata Sandi Baru</label>
+                <input type="password" id="password" placeholder="Minimal 6 karakter" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="confirmPassword">Konfirmasi Kata Sandi</label>
+                <input type="password" id="confirmPassword" placeholder="Ketik ulang sandi baru" required>
+            </div>
+            
+            <button type="button" id="btnReset" class="btn-dark">Simpan Kata Sandi Baru</button>
+            
+            <a href="index.html" class="back-link">Kembali ke halaman Login</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // INISIALISASI SUPABASE
+            const supabaseUrl = 'https://jibsrfttocyopmclaein.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppYnNyZnR0b2N5b3BtY2xhZWluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwODM3NDksImV4cCI6MjA5NDY1OTc0OX0.5YZyr5C8dL2EJeFVTdUWMNL6uWP5wflWKpnS3fHWEB8';
+            const db = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+            // Deteksi jika pengguna masuk melalui link pemulihan email (Password Recovery)
+            db.auth.onAuthStateChange((event, session) => {
+                if (event === 'PASSWORD_RECOVERY') {
+                    console.log("Akses pemulihan sandi diizinkan.");
+                }
+            });
+
+            const btnReset = document.getElementById('btnReset');
+            
+            btnReset.addEventListener('click', async () => {
+                const pass = document.getElementById('password').value.trim();
+                const confirmPass = document.getElementById('confirmPassword').value.trim();
+
+                // Validasi input
+                if (pass.length < 6) {
+                    alert("Kata sandi harus memiliki minimal 6 karakter!");
+                    return;
+                }
+                if (pass !== confirmPass) {
+                    alert("Konfirmasi kata sandi tidak cocok!");
+                    return;
+                }
+
+                btnReset.textContent = 'Menyimpan...';
+                btnReset.disabled = true;
+
+                try {
+                    // Supabase akan menggunakan token dari URL email untuk mengizinkan update ini
+                    const { error } = await db.auth.updateUser({
+                        password: pass
+                    });
+
+                    if (error) throw error;
+
+                    alert("✅ Kata sandi berhasil diperbarui! Silakan masuk dengan sandi baru Anda.");
+                    
+                    // Arahkan kembali ke halaman login utama
+                    window.location.href = 'index.html';
+
+                } catch (error) {
+                    alert("Gagal mereset kata sandi: " + error.message + "\n(Pastikan Anda membuka halaman ini dari link di email Anda)");
+                } finally {
+                    btnReset.textContent = 'Simpan Kata Sandi Baru';
+                    btnReset.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

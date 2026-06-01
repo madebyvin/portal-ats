@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Mandor - Portal ATS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* ==========================================
+           1. CSS VARIABLES (THEMING & DARK MODE)
+           ========================================== */
+        :root {
+            --bg-body: #f3f4f6;
+            --bg-panel: #ffffff;
+            --bg-dark-card: #0D0D0D;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --text-light: #ffffff;
+            --border-color: #e5e7eb;
+            --sidebar-w: 260px;
+            --sidebar-w-min: 80px;
+            --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow: 0 4px 20px rgba(0,0,0,0.03);
+        }
+        body.dark-mode {
+            --bg-body: #121212;
+            --bg-panel: #1e1e1e;
+            --bg-dark-card: #000000;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --border-color: #374151;
+            --shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; transition: background-color var(--transition); }
+        /* ==========================================
+           2. SIDEBAR
+           ========================================== */
+        .sidebar {
+            width: var(--sidebar-w); background: var(--bg-panel); border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column; transition: width var(--transition); z-index: 50; position: relative;
+        }
+        .sidebar.minimized { width: var(--sidebar-w-min); }
+        .sidebar-header { padding: 30px 20px; display: flex; align-items: center; gap: 15px; overflow: hidden; white-space: nowrap; }
+        .sidebar-logo { width: 32px; height: 32px; fill: var(--text-main); flex-shrink: 0; }
+        .sidebar-brand { font-size: 20px; font-weight: 800; color: var(--text-main); opacity: 1; transition: opacity var(--transition); }
+        .sidebar.minimized .sidebar-brand { opacity: 0; pointer-events: none; }
+        .nav-menu { list-style: none; padding: 0 15px; display: flex; flex-direction: column; gap: 8px; flex-grow: 1; margin-top: 10px;}
+        .nav-item {
+            display: flex; align-items: center; gap: 15px; padding: 12px 15px; border-radius: 12px;
+            color: var(--text-muted); font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s;
+            overflow: hidden; white-space: nowrap;
+        }
+        .nav-icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: 2; fill: none; flex-shrink: 0; }
+        .nav-item:hover, .nav-item.active { background: var(--bg-dark-card); color: var(--text-light); }
+        .nav-text { opacity: 1; transition: opacity var(--transition); }
+        .sidebar.minimized .nav-text { opacity: 0; }
+        .sidebar-footer { padding: 20px 15px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); }
+        .toggle-btn { display: flex; align-items: center; gap: 15px; padding: 12px 15px; cursor: pointer; color: var(--text-muted); font-weight: 600; font-size: 14px;
+            border-radius: 12px; overflow: hidden; white-space: nowrap; transition: 0.3s; }
+        .toggle-btn:hover { background: var(--border-color); color: var(--text-main); }
+        .btn-minimize {
+            position: absolute; right: -14px; top: 40px; width: 28px; height: 28px; background: var(--bg-panel);
+            border: 1px solid var(--border-color); border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 60; color: var(--text-main); transition: transform var(--transition);
+        }
+        .sidebar.minimized .btn-minimize { transform: rotate(180deg); }
+        /* ==========================================
+           3. MAIN CONTENT & HEADER
+           ========================================== */
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--bg-body); padding: 30px 40px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; position: relative; }
+        .greeting { font-size: 28px; font-weight: 700; color: var(--text-main); }
+        .profile-wrapper { position: relative; }
+        .profile-btn { width: 40px; height: 40px; border-radius: 50%; background: #d1d5db; border: 2px solid var(--border-color); cursor: pointer; overflow: hidden; }
+        .profile-dropdown {
+            position: absolute; right: 0; top: 50px; background: var(--bg-panel); border: 1px solid var(--border-color);
+            border-radius: 12px; width: 160px; box-shadow: var(--shadow); display: none; flex-direction: column; z-index: 100;
+        }
+        .profile-dropdown.show { display: flex; }
+        .dropdown-item { padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; border-bottom: 1px solid var(--border-color); }
+        .dropdown-item:last-child { border: none; color: #ef4444; }
+        .dropdown-item:hover { background: rgba(0,0,0,0.05); }
+        /* ==========================================
+           4. TABS & CARDS
+           ========================================== */
+        .section-tab { display: none; animation: fadeIn 0.4s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+        .task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .task-card { background: var(--bg-dark-card); color: var(--text-light); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; gap: 12px; position: relative; transition: 0.3s;}
+        .task-card:hover { transform: translateY(-5px); }
+        .task-badge { position: absolute; top: 20px; right: 20px; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .task-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .task-detail { font-size: 13px; color: #a1a1aa; display: flex; justify-content: space-between; }
+        .btn-outline { background: transparent; border: 1px solid #52525b; color: #fff; padding: 12px; border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: 600;
+            margin-top: auto; transition: 0.3s; text-align: center;}
+        .btn-outline:hover:not(:disabled) { background: #fff; color: #000; }
+        .btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+        .empty-state { grid-column: 1 / -1; text-align: center; padding: 50px; color: var(--text-muted); background: var(--bg-panel); border-radius: 24px; border: 1px solid var(--border-color);
+        }
+        /* ==========================================
+           5. MODAL FORM LAPORAN
+           ========================================== */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: none; justify-content: center;
+            align-items: center; z-index: 200; opacity: 0; transition: opacity 0.3s ease; }
+        .modal-overlay.show { display: flex; opacity: 1; }
+        .modal-box { background: var(--bg-panel); color: var(--text-main); padding: 30px; border-radius: 24px; width: 100%; max-width: 500px; box-shadow: var(--shadow); max-height: 90vh; overflow-y: auto;
+            transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-overlay.show .modal-box { transform: scale(1); }
+        .modal-box h3 { margin-bottom: 5px; }
+        .modal-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.03); padding: 12px 15px; border-radius: 12px; margin-bottom: 10px;
+            border: 1px solid var(--border-color); }
+        body.dark-mode .item-row { background: rgba(255,255,255,0.03); }
+        .item-row input { width: 90px; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; background: var(--bg-body); color: var(--text-main);
+            outline: none; }
+        .item-row input:focus { border-color: var(--text-main); }
+        .form-control { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border-color); margin-top: 8px; margin-bottom: 20px; font-size: 14px; background: var(--bg-body);
+            color: var(--text-main); outline: none; }
+        .form-control:focus { border-color: var(--text-main); }
+        .btn-dark { background: var(--bg-dark-card); color: var(--text-light); border: none; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; width: 100%; transition: 0.3s;
+            margin-top: 10px; }
+        .btn-dark:hover { opacity: 0.9; }
+        .btn-cancel { background: transparent; color: var(--text-main); border: 1px solid var(--border-color); padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; width: 100%;
+            transition: 0.3s; margin-top: 10px; }
+        .btn-cancel:hover { background: var(--border-color); }
+    </style>
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <button class="btn-minimize" onclick="toggleSidebar()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="sidebar-header">
+            <svg class="sidebar-logo" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <span class="sidebar-brand">Portal ATS</span>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" onclick="gantiTab('aktif', this)">
+                <svg class="nav-icon"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                <span class="nav-text">Tugas Aktif</span>
+            </li>
+            <li class="nav-item" onclick="gantiTab('selesai', this)">
+                <svg class="nav-icon"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                <span class="nav-text">Riwayat Selesai</span>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="toggle-btn" onclick="toggleTheme()">
+                <svg class="nav-icon" id="themeIcon"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <span class="nav-text" id="themeText">Light Mode</span>
+            </div>
+        </div>
+    </aside>
+    <main class="main-content">
+        <header class="header">
+            <div class="greeting" id="greetingText">Hi, Mandor!</div>
+            <div class="profile-wrapper">
+                <div class="profile-btn" onclick="toggleDropdown()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 100%; height: 100%; padding: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+                <div class="profile-dropdown" id="profileMenu">
+                    <div class="dropdown-item" onclick="bukaModalSandi()">Ubah Kata Sandi</div>
+                    <div class="dropdown-item" onclick="logout()">Keluar</div>
+                </div>
+            </div>
+        </header>
+        <section id="tab-aktif" class="section-tab" style="display: block;">
+            <h3 style="margin-bottom: 20px; font-size: 18px;">Pekerjaan Perlu Diselesaikan</h3>
+            <div class="task-grid" id="containerAktif">
+                <div class="empty-state">Mencari tugas di database...</div>
+            </div>
+        </section>
+        <section id="tab-selesai" class="section-tab">
+            <h3 style="margin-bottom: 20px; font-size: 18px;">Riwayat Pekerjaan Disetujui Admin</h3>
+            <div class="task-grid" id="containerSelesai">
+                <div class="empty-state">Mencari riwayat di database...</div>
+            </div>
+        </section>
+    </main>
+    <div class="modal-overlay" id="modalLaporan">
+        <div class="modal-box">
+            <h3>  📝   Form Laporan Lapangan</h3>
+            <p class="modal-desc">Laporkan jumlah item yang benar-benar terpakai beserta bukti foto.</p>
+            <div id="modalItemsContainer"></div>
+            <label style="font-size: 13px; font-weight: 600; display: block; margin-top: 20px;">Link Google Drive (Bukti Foto)</label>
+            <input type="url" id="linkDrive" class="form-control" placeholder="https://drive.google.com/...">
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn-dark" id="btnSubmitLaporan">Kirim Laporan</button>
+                <button class="btn-cancel" onclick="tutupModal()">Batal</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="modalUbahSandi">
+        <div class="modal-box" style="max-width: 400px;">
+            <h3 style="margin-bottom: 10px;">Ubah Kata Sandi</h3>
+            <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">Masukkan kata sandi baru untuk akun Anda (Min. 6 Karakter).</p>
+            <input type="password" id="sandiBaru" class="form-control" placeholder="Kata Sandi Baru" style="margin-bottom: 15px;" required>
+            <input type="password" id="sandiKonfirmasi" class="form-control" placeholder="Konfirmasi Kata Sandi" style="margin-bottom: 20px;" required>
+            <button class="btn-dark" id="btnSimpanSandi" onclick="simpanSandi()">Simpan Kata Sandi</button>
+            <button class="btn-cancel" onclick="document.getElementById('modalUbahSandi').classList.remove('show'); setTimeout(() => document.getElementById('modalUbahSandi').style.display='none', 300);">Batal</button>
+        </div>
+    </div>
+    <script>
+        // INISIALISASI SUPABASE
+        const supabaseUrl = 'https://jibsrfttocyopmclaein.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppYnNyZnR0b2N5b3BtY2xhZWluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwODM3NDksImV4cCI6MjA5NDY1OTc0OX0.5YZyr5C8dL2EJeFVTdUWMNL6uWP5wflWKpnS3fHWEB8';
+        const db = window.supabase.createClient(supabaseUrl, supabaseKey);
+        let currentUserId = null;
+        let currentPekerjaanId = null;
+        let tabSaatIni = 'aktif';
+        // UI Interactions
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('minimized'); }
+        function toggleDropdown() { document.getElementById('profileMenu').classList.toggle('show'); }
+        window.onclick = function(e) { if(!e.target.closest('.profile-wrapper')) document.getElementById('profileMenu').classList.remove('show'); }
+        function toggleTheme() {
+            const body = document.body;
+            body.classList.toggle('dark-mode');
+            const isDark = body.classList.contains('dark-mode');
+            document.getElementById('themeText').textContent = isDark ? "Light Mode" : "Dark Mode";
+            document.getElementById('themeIcon').innerHTML = isDark ?
+            '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>' :
+            '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        }
+        function logout() { window.location.href = 'index.html'; }
+        function gantiTab(namaTab, element) {
+            tabSaatIni = namaTab;
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            document.querySelectorAll('.section-tab').forEach(el => el.style.display = 'none');
+            document.getElementById('tab-' + namaTab).style.display = 'block';
+            muatDataTugas();
+        }
+        // FUNGSI UBAH KATA SANDI
+        function bukaModalSandi() {
+            document.getElementById('profileMenu').classList.remove('show');
+            const modal = document.getElementById('modalUbahSandi');
+            modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
+        }
+        async function simpanSandi() {
+            const p1 = document.getElementById('sandiBaru').value, p2 = document.getElementById('sandiKonfirmasi').value;
+            if(p1.length < 6) return alert("Sandi minimal 6 karakter!"); if(p1 !== p2) return alert("Konfirmasi sandi tidak cocok!");
+            const btn = document.getElementById('btnSimpanSandi'); btn.textContent = "Menyimpan..."; btn.disabled = true;
+            try {
+                const { error } = await db.auth.updateUser({ password: p1 });
+                if(error) throw error; alert("  ✅   Kata sandi berhasil diubah!");
+                document.getElementById('modalUbahSandi').classList.remove('show'); setTimeout(() => document.getElementById('modalUbahSandi').style.display = 'none', 300);
+                document.getElementById('sandiBaru').value = ''; document.getElementById('sandiKonfirmasi').value = '';
+            } catch(e) { alert("Gagal: " + e.message); } finally { btn.textContent = "Simpan Kata Sandi"; btn.disabled = false; }
+        }
+        // INIT & LOAD DATA
+        document.addEventListener('DOMContentLoaded', async () => {
+            const { data: userData } = await db.auth.getUser();
+            if(userData && userData.user) {
+                currentUserId = userData.user.id;
+                const { data: profileData } = await db.from('profiles').select('nama_lengkap').eq('id', currentUserId).single();
+                if (profileData) {
+                    const namaPanggilan = profileData.nama_lengkap.split(' ')[0];
+                    document.getElementById('greetingText').textContent = `Hi, ${namaPanggilan}!`;
+                }
+                await muatDataTugas();
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+        async function muatDataTugas() {
+            const isAktif = tabSaatIni === 'aktif';
+            const containerId = isAktif ? 'containerAktif' : 'containerSelesai';
+            const container = document.getElementById(containerId);
+            container.innerHTML = '<div class="empty-state">Sedang memuat data dari server...</div>';
+            try {
+                let query = db.from('pekerjaan').select('*').eq('mandor_id', currentUserId).order('created_at', { ascending: false });
+                if (isAktif) {
+                    query = query.in('status', ['pending', 'revisi', 'review']);
+                } else {
+                    query = query.eq('status', 'selesai');
+                }
+                const { data: tugasData, error } = await query;
+                if (error) throw error;
+                if (!tugasData || tugasData.length === 0) {
+                    container.innerHTML = `<div class="empty-state">  🎉   ${isAktif ? 'Mantap! Tidak ada tugas aktif saat ini.'
+                    : 'Belum ada riwayat pekerjaan yang selesai.'}</div>`;
+                    return;
+                }
+                container.innerHTML = '';
+                tugasData.forEach(tugas => {
+                    const tanggal = new Date(tugas.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                    let badgeHTML = ''; let buttonHTML = ''; let revisiHTML = '';
+                    // Styling Badge dan Tombol berdasarkan status
+                    if (tugas.status === 'selesai') {
+                        badgeHTML = '<div class="task-badge" style="background:#14532d; color:#bbf7d0;">Selesai</div>';
+                        buttonHTML = `<button class="btn-outline" disabled style="border-color:#14532d; color:#bbf7d0;">Disetujui Admin</button>`;
+                    } else if (tugas.status === 'review') {
+                        badgeHTML = '<div class="task-badge" style="background:#1e3a8a; color:#bfdbfe;">Menunggu Review</div>';
+                        buttonHTML = `<button class="btn-outline" disabled>Laporan Sedang Diperiksa</button>`;
+                    } else if (tugas.status === 'revisi') {
+                        badgeHTML = '<div class="task-badge" style="background:#7f1d1d; color:#fca5a5;">Revisi Dibutuhkan</div>';
+                        buttonHTML = `<button class="btn-outline" onclick="bukaFormLaporan('${tugas.id}')">Perbaiki Laporan -></button>`;
+                        revisiHTML = tugas.catatan_revisi ? `<div style="margin-top:10px; font-size:12px; color:#fca5a5; background:rgba(127,29,29,0.3); padding:10px; border-radius:8px;"><b>Catatan Admin:</b> ${tugas.catatan_revisi}</div>` : '';
+                    } else {
+                        badgeHTML = '<div class="task-badge" style="background:#3f3f46; color:#ffffff;">Tugas Baru</div>';
+                        buttonHTML = `<button class="btn-outline" onclick="bukaFormLaporan('${tugas.id}')">Kerjakan & Lapor -></button>`;
+                    }
+                    // Buat link Gmaps
+                    const mapLink = tugas.lokasi_detail;
+                    const card = document.createElement('div');
+                    card.className = 'task-card';
+                    card.innerHTML = `
+                    ${badgeHTML}
+                    <div class="task-title" style="margin-right:80px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    ${tugas.kecamatan}
+                    </div>
+                    <div class="task-detail" style="margin-top:5px;">
+                    <span><b>Lokasi:</b> <a href="${mapLink}" target="_blank" style="color:#a1a1aa; text-decoration:underline; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; vertical-align:bottom;">Buka Google Maps ↗</a></span>
+                    </div>
+                    <div class="task-detail">
+                    <span><b>Diberikan:</b> ${tanggal}</span>
+                    </div>
+                    ${revisiHTML}
+                    <div style="margin-top:20px;"></div>
+                    ${buttonHTML}
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error(error);
+                container.innerHTML = '<div class="empty-state" style="color:red;">Gagal memuat tugas.</div>';
+            }
+        }
+        // LOGIKA FORM LAPORAN
+        async function bukaFormLaporan(idTugas) {
+            currentPekerjaanId = idTugas;
+            const container = document.getElementById('modalItemsContainer');
+            container.innerHTML = '<div style="text-align:center; padding:20px; font-size:14px;">Menarik data instruksi barang...</div>';
+
+            const modal = document.getElementById('modalLaporan');
+            modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
+            try {
+                const { data: items, error } = await db.from('item_pekerjaan').select('*').eq('pekerjaan_id', idTugas);
+                if (error) throw error;
+                container.innerHTML = '';
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'item-row';
+                    div.innerHTML = `
+                    <div>
+                    <div style="font-weight: 700; font-size: 14px; margin-bottom:4px;">${item.nama_item}</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Diinstruksikan: ${item.qty_dibutuhkan}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:12px; font-weight:600;">Terpakai:</span>
+                    <input type="number" min="0" class="input-qty" data-itemid="${item.id}" placeholder="0" required>
+                    </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (error) {
+                container.innerHTML = '<div style="color:red; text-align:center;">Gagal menarik data barang.</div>';
+            }
+        }
+        function tutupModal() {
+            document.getElementById('modalLaporan').classList.remove('show');
+            setTimeout(() => document.getElementById('modalLaporan').style.display='none', 300);
+            document.getElementById('linkDrive').value = '';
+        }
+        document.getElementById('btnSubmitLaporan').addEventListener('click', async () => {
+            const linkDrive = document.getElementById('linkDrive').value;
+            if (!linkDrive) { alert("Harap masukkan Link Google Drive bukti foto!"); return; }
+            const inputs = document.querySelectorAll('.input-qty');
+            let itemUpdates = [];
+            for (let input of inputs) {
+                if (input.value === '') { alert("Harap isi jumlah terpakai untuk semua barang (Isi 0 jika tidak ada)."); return; }
+                itemUpdates.push({ id: input.getAttribute('data-itemid'), qty_digunakan: parseInt(input.value) });
+            }
+            const btn = document.getElementById('btnSubmitLaporan');
+            btn.textContent = "Mengirim..."; btn.disabled = true;
+            try {
+                // Update qty items
+                for (let update of itemUpdates) {
+                    await db.from('item_pekerjaan').update({ qty_digunakan: update.qty_digunakan }).eq('id', update.id);
+                }
+                // Update status tugas menjadi 'review'
+                const { error: updateError } = await db.from('pekerjaan').update({
+                    status: 'review',
+                    link_drive_evidence: linkDrive,
+                    catatan_revisi: null // Reset revisi
+                }).eq('id', currentPekerjaanId);
+                if (updateError) throw updateError;
+                alert("  ✅   Laporan berhasil dikirim ke Admin!");
+                tutupModal();
+                await muatDataTugas(); // Refresh list
+            } catch (error) {
+                alert("Gagal mengirim laporan: " + error.message);
+            } finally {
+                btn.textContent = "Kirim Laporan"; btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Admin - Portal ATS</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ==========================================
+1. CSS VARIABLES (THEMING & DARK MODE)
+========================================== */
+:root {
+--bg-body: #f3f4f6;
+--bg-panel: #ffffff;
+--bg-dark-card: #0D0D0D;
+--text-main: #111827;
+--text-muted: #6b7280;
+--text-light: #ffffff;
+--border-color: #e5e7eb;
+--sidebar-w: 260px;
+--sidebar-w-min: 80px;
+--transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+--shadow: 0 4px 20px rgba(0,0,0,0.03);
+}
+body.dark-mode {
+--bg-body: #121212;
+--bg-panel: #1e1e1e;
+--bg-dark-card: #000000;
+--text-main: #f9fafb;
+--text-muted: #9ca3af;
+--border-color: #374151;
+--shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+body { background-color: var(--bg-body); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; transition: background-color var(--transition); }
+/* ==========================================
+2. SIDEBAR
+========================================== */
+.sidebar {
+width: var(--sidebar-w); background: var(--bg-panel); border-right: 1px solid var(--border-color);
+display: flex; flex-direction: column; transition: width var(--transition); z-index: 50; position: relative;
+}
+.sidebar.minimized { width: var(--sidebar-w-min); }
+.sidebar-header { padding: 30px 20px; display: flex; align-items: center; gap: 15px; overflow: hidden; white-space: nowrap; }
+.sidebar-logo { width: 32px; height: 32px; fill: var(--text-main); flex-shrink: 0; }
+.sidebar-brand { font-size: 20px; font-weight: 800; color: var(--text-main); opacity: 1; transition: opacity var(--transition); }
+.sidebar.minimized .sidebar-brand { opacity: 0; pointer-events: none; }
+.nav-menu { list-style: none; padding: 0 15px; display: flex; flex-direction: column; gap: 8px; flex-grow: 1; margin-top: 10px;}
+.nav-item {
+display: flex; align-items: center; gap: 15px; padding: 12px 15px; border-radius: 12px;
+color: var(--text-muted); font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s;
+overflow: hidden; white-space: nowrap;
+}
+.nav-icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: 2; fill: none; flex-shrink: 0; }
+.nav-item:hover, .nav-item.active { background: var(--bg-dark-card); color: var(--text-light); }
+.nav-text { opacity: 1; transition: opacity var(--transition); }
+.sidebar.minimized .nav-text { opacity: 0; }
+.sidebar-footer { padding: 20px 15px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); }
+.toggle-btn { display: flex; align-items: center; gap: 15px; padding: 12px 15px; cursor: pointer; color: var(--text-muted); font-weight: 600; font-size: 14px;
+border-radius: 12px; overflow: hidden; white-space: nowrap; transition: 0.3s; }
+.toggle-btn:hover { background: var(--border-color); color: var(--text-main); }
+/* Tombol Minimize absolute di tengah garis kanan */
+.btn-minimize {
+position: absolute; right: -14px; top: 40px; width: 28px; height: 28px; background: var(--bg-panel);
+border: 1px solid var(--border-color); border-radius: 50%; display: flex; align-items: center; justify-content: center;
+cursor: pointer; z-index: 60; color: var(--text-main); transition: transform var(--transition);
+}
+.sidebar.minimized .btn-minimize { transform: rotate(180deg); }
+/* ==========================================
+3. MAIN CONTENT & HEADER
+========================================== */
+.main-content { flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--bg-body); padding: 30px 40px; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; position: relative; }
+.greeting { font-size: 28px; font-weight: 700; color: var(--text-main); }
+.profile-wrapper { position: relative; }
+.profile-btn { width: 40px; height: 40px; border-radius: 50%; background: #d1d5db; border: 2px solid var(--border-color); cursor: pointer; overflow: hidden; display:flex; justify-content:center; align-items:center;}
+.profile-dropdown {
+position: absolute; right: 0; top: 50px; background: var(--bg-panel); border: 1px solid var(--border-color);
+border-radius: 12px; width: 160px; box-shadow: var(--shadow); display: none; flex-direction: column; z-index: 100;
+}
+.profile-dropdown.show { display: flex; }
+.dropdown-item { padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; border-bottom: 1px solid var(--border-color); }
+.dropdown-item:last-child { border: none; color: #ef4444; }
+.dropdown-item:hover { background: rgba(0,0,0,0.05); }
+/* ==========================================
+4. BENTO DASHBOARD GRID
+========================================== */
+.bento-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; grid-auto-rows: minmax(200px, auto); margin-bottom: 20px; }
+.card { background: var(--bg-panel); border-radius: 24px; padding: 24px; box-shadow: var(--shadow); border: 1px solid var(--border-color); display: flex; flex-direction: column; }
+.card-dark { background: var(--bg-dark-card); color: var(--text-light); border: none; }
+/* Overall Information (Col 1) */
+.overall-info { grid-column: span 1; }
+.overall-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+.overall-stats { display: flex; gap: 30px; margin-bottom: 30px; }
+.stat-big { font-size: 42px; font-weight: 800; line-height: 1; }
+.stat-label { font-size: 11px; color: #a1a1aa; max-width: 60px; line-height: 1.2; margin-left: 8px;}
+.overall-boxes { display: flex; gap: 10px; }
+.stat-box { flex: 1; background: #1f1f1f; border-radius: 12px; padding: 12px 5px; text-align: center; cursor: pointer; transition: 0.2s;
+border: 1px solid transparent;}
+.stat-box:hover { background: #27272a; border-color: #52525b; transform: translateY(-2px);}
+.stat-box-icon { width: 24px; height: 24px; margin: 0 auto 10px auto; display: flex; justify-content: center; align-items: center; }
+.stat-box-val { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+.stat-box-lbl { font-size: 10px; color: #a1a1aa; }
+/* Weekly & Monthly Progress */
+.weekly-progress { grid-column: span 2; position: relative; }
+.monthly-progress { grid-column: span 1; display: flex; flex-direction: column; justify-content: space-between;}
+.chart-container { position: relative; width: 100%; height: 180px; margin-top: 10px; }
+/* Next Goals & Last Projects */
+.next-goals { grid-column: span 1; }
+.last-projects-container { grid-column: span 3; display: flex; flex-direction: column; }
+.last-projects { display: flex; gap: 20px; flex: 1; background: transparent; border: none; box-shadow: none; padding: 0;}
+.project-card { flex: 1; background: var(--bg-dark-card); color: var(--text-light); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; transition: 0.3s;}
+.project-card:hover { transform: translateY(-5px); }
+
+/* ==========================================
+TAMBAHAN CARD: MONITORING INVENTORI 
+========================================== */
+.card-monitoring { grid-column: span 4; margin-top: 0; }
+.card-monitoring h3 { font-size: 16px; margin-bottom: 15px; }
+.table-responsive { overflow-x: auto; }
+.table-monitoring { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-monitoring th { background: rgba(0,0,0,0.03); padding:12px; font-weight: 600; color: var(--text-main); }
+body.dark-mode .table-monitoring th { background: rgba(255,255,255,0.03); }
+.table-monitoring td { padding:12px; border-bottom: 1px solid var(--border-color); }
+.table-monitoring th.left-radius { border-top-left-radius: 8px; border-bottom-left-radius: 8px; width: 50px; text-align:center; }
+.table-monitoring th.right-radius { border-top-right-radius: 8px; border-bottom-right-radius: 8px; text-align:center; }
+
+/* ==========================================
+5. TAB LAINNYA (Tugas Baru, Aktif, Review)
+========================================== */
+.section-tab { display: none; animation: fadeIn 0.4s ease forwards; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes popIn { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-main); }
+.form-control { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-panel); color: var(--text-main); font-size: 14px;
+outline: none; }
+.form-control:focus { border-color: var(--text-main); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+.btn-dark { background: var(--bg-dark-card); color: var(--text-light); border: none; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; width: 100%; transition: 0.3s;
+margin-top: 10px; }
+.btn-dark:hover { opacity: 0.9; }
+/* Grid Task Cards (Hitam) */
+.task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+.task-card { background: var(--bg-dark-card); color: var(--text-light); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; gap: 12px; position: relative; transition: 0.3s;}
+.task-card:hover { transform: translateY(-5px); }
+.task-badge { position: absolute; top: 20px; right: 20px; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #3f3f46;
+color: #fff; }
+.task-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.task-detail { font-size: 13px; color: #a1a1aa; }
+.btn-outline { background: transparent; border: 1px solid #52525b; color: #fff; padding: 10px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600;
+margin-top: auto; transition: 0.3s;}
+.btn-outline:hover { background: #fff; color: #000; }
+/* Modal Overlay */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: none; justify-content: center;
+align-items: center; z-index: 200; opacity: 0; transition: opacity 0.3s ease; }
+.modal-overlay.show { display: flex; opacity: 1; }
+.modal-box { background: var(--bg-panel); color: var(--text-main); padding: 30px; border-radius: 24px; width: 100%; max-width: 500px; box-shadow: var(--shadow); max-height: 90vh; overflow-y: auto;
+transform: scale(0.95); transition: transform 0.3s ease; }
+.modal-overlay.show .modal-box { transform: scale(1); }
+/* List Goal */
+.goal-item { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 14px; }
+.goal-item input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--text-main); }
+.goal-item.done span { text-decoration: line-through; color: var(--text-muted); }
+.btn-cancel { background: transparent; color: var(--text-main); border: 1px solid var(--border-color); padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; width: 100%;
+transition: 0.3s; margin-top: 10px; }
+.btn-cancel:hover { background: var(--border-color); }
+/* Modifikasi Form Date Picker Khusus Fitur Filter */
+.week-filter-wrapper { position: relative; display: flex; align-items: center; }
+.week-filter-label { font-size: 11px; color: var(--text-main); font-weight: 600; cursor: pointer; border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 8px; background: var(--bg-body); transition: 0.3s; display: flex; align-items: center; gap: 5px;}
+.week-filter-wrapper input[type="date"] { position: absolute; opacity: 0; cursor: pointer; left: 0; top: 0; width: 100%; height: 100%; }
+.week-filter-wrapper:hover .week-filter-label { background: var(--border-color); }
+</style>
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+<button class="btn-minimize" onclick="toggleSidebar()">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+</button>
+<div class="sidebar-header">
+<svg class="sidebar-logo" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+<span class="sidebar-brand">iDraft ATS</span>
+</div>
+<ul class="nav-menu">
+<li class="nav-item active" onclick="gantiTab('dashboard', this)">
+<svg class="nav-icon"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+<span class="nav-text">Dashboard</span>
+</li>
+<li class="nav-item" onclick="gantiTab('tugasBaru', this)">
+<svg class="nav-icon"><path d="M12 5v14M5 12h14"/></svg>
+<span class="nav-text">Beri Tugas Baru</span>
+</li>
+<li class="nav-item" onclick="gantiTab('aktif', this)">
+<svg class="nav-icon"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+<span class="nav-text">Pekerjaan Aktif</span>
+</li>
+<li class="nav-item" onclick="gantiTab('review', this)">
+<svg class="nav-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+<span class="nav-text">Review Pekerjaan</span>
+</li>
+<li class="nav-item" onclick="gantiTab('riwayat', this)">
+<svg class="nav-icon"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+<span class="nav-text">Riwayat Selesai</span>
+</li>
+</ul>
+<div class="sidebar-footer">
+<div class="toggle-btn" onclick="toggleTheme()">
+<svg class="nav-icon" id="themeIcon"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+<span class="nav-text" id="themeText">Light Mode</span>
+</div>
+</div>
+</aside>
+<main class="main-content">
+<header class="header">
+<div class="greeting" id="greetingText">Hi, Admin!</div>
+<div class="profile-wrapper">
+<div class="profile-btn" onclick="toggleDropdown()">
+<svg viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 100%; height: 100%; padding: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+</div>
+<div class="profile-dropdown" id="profileMenu">
+<div class="dropdown-item" onclick="bukaModalSandi()">Ubah Kata Sandi</div>
+<div class="dropdown-item" onclick="logout()">Keluar</div>
+</div>
+</div>
+</header>
+<section id="tab-dashboard" class="section-tab" style="display: block;">
+<div class="bento-grid">
+<div class="card card-dark overall-info">
+<div class="overall-title">Overall Information <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+<div class="overall-stats">
+<div style="display: flex; align-items: center;"><span class="stat-big" id="dashTotalDone">0</span><span class="stat-label">Tasks done<br>for all time</span></div>
+<div style="display: flex; align-items: center;"><span class="stat-big" id="dashTotalMandor">0</span><span class="stat-label">Mandor<br>are active</span></div>
+</div>
+<div class="overall-boxes">
+<div class="stat-box" onclick="document.querySelectorAll('.nav-item')[2].click()">
+<div class="stat-box-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></div>
+<div class="stat-box-val" id="dashAktif">0</div><div class="stat-box-lbl">In Progress</div>
+</div>
+<div class="stat-box" onclick="document.querySelectorAll('.nav-item')[3].click()">
+<div class="stat-box-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg></div>
+<div class="stat-box-val" id="dashReview">0</div><div class="stat-box-lbl">Wait Review</div>
+</div>
+<div class="stat-box" onclick="document.querySelectorAll('.nav-item')[4].click()">
+<div class="stat-box-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/></svg></div>
+<div class="stat-box-val" id="dashSelesaiBulan">0</div><div class="stat-box-lbl">Completed</div>
+</div>
+</div>
+</div>
+<div class="card weekly-progress">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+<div>
+<h3 style="font-size: 16px;">Weekly progress</h3>
+<div style="font-size: 12px; color: var(--text-muted); display: flex; gap:15px; margin-top:5px;">
+<span style="display:flex; align-items:center; gap:5px;"><div style="width:6px;height:6px;border-radius:50%;background:var(--text-main);"></div> Pekerjaan</span>
+<span style="display:flex; align-items:center; gap:5px;"><div style="width:6px;height:6px;border-radius:50%;background:var(--border-color);"></div> Item Terpakai</span>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px;">
+<div class="week-filter-wrapper">
+<span class="week-filter-label" id="weekLabel">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+Memuat...
+</span>
+<input type="date" id="weekPicker">
+</div>
+<button style="background:none;border:none;cursor:pointer;color:var(--text-main);" onclick="bukaFullscreenChart()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+</div>
+</div>
+<div class="chart-container"><canvas id="weeklyChart"></canvas></div>
+</div>
+<div class="card monthly-progress">
+<div>
+<h3 style="font-size: 16px; margin-bottom: 5px;">Monthly progress</h3>
+<p style="font-size: 11px; color: var(--text-muted);">Persentase Inventori Terpakai</p>
+</div>
+<div style="position: relative; width: 120px; height: 120px; margin: 10px auto;">
+<canvas id="monthlyChart"></canvas>
+<div style="position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); font-size:18px; font-weight:700;" id="monthPercent">0%</div>
+</div>
+<div style="font-size: 12px; display:flex; flex-direction:column; gap:8px;">
+<span style="display:flex; justify-content:space-between; align-items:center;">
+<span style="display:flex; align-items:center; gap:5px;"><div style="width:8px;height:8px;border-radius:50%;background:var(--text-main);"></div> Item Terpakai</span>
+<b id="lblItemTerpakai">0</b>
+</span>
+<span style="display:flex; justify-content:space-between; align-items:center;">
+<span style="display:flex; align-items:center; gap:5px;"><div style="width:8px;height:8px;border-radius:50%;background:var(--border-color);"></div> Item Instruksi</span>
+<b id="lblItemInstruksi">0</b>
+</span>
+<hr style="border:0; border-top:1px solid var(--border-color); margin: 2px 0;">
+<span style="display:flex; justify-content:space-between; align-items:center;">
+<span><div style="display:inline-block; width:8px;height:8px;border-radius:50%;background:transparent;border:1px solid var(--text-main); margin-right:5px;"></div>Pekerjaan Selesai</span>
+<b id="lblPkjSelesai">0</b>
+</span>
+</div>
+</div>
+<div class="card next-goals">
+<div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+<h3 style="font-size: 16px;">Month goals:</h3>
+<button style="background:none;border:none;cursor:pointer;color:var(--text-main);" onclick="bukaModalGoal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+</div>
+<div id="goalsContainer" style="display: flex; flex-direction: column;">
+</div>
+</div>
+<div class="last-projects-container" style="grid-column: span 3; display: flex; flex-direction: column;">
+<h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 12px; margin-left: 5px;">Last Projects</h3>
+<div class="last-projects" id="lastProjectsContainer" style="display:flex; gap: 20px; flex: 1;">
+<div class="project-card" style="justify-content: center; align-items: center; color: #a1a1aa;">Belum ada riwayat selesai</div>
+<div class="project-card" style="justify-content: center; align-items: center; color: #a1a1aa;">Belum ada riwayat selesai</div>
+</div>
+</div>
+
+<div class="card card-monitoring">
+<h3 style="font-size: 16px; margin-bottom: 15px;">Monitoring Aset & Inventori</h3>
+<div class="table-responsive">
+<table class="table-monitoring">
+<thead>
+<tr>
+<th class="left-radius">No</th>
+<th style="text-align:left;">Nama Item</th>
+<th style="text-align:center;">Jumlah Stok</th>
+<th style="text-align:center;">Jumlah Item Terpakai</th>
+<th class="right-radius">Sisa Item</th>
+</tr>
+</thead>
+<tbody id="tabelMonitoringInventori">
+<tr><td colspan="5" class="empty-state" style="text-align:center; padding: 20px;">Memuat data inventori...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+</div>
+</section>
+<section id="tab-tugasBaru" class="section-tab">
+<div class="card">
+<h3 style="margin-bottom: 20px; font-size: 18px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Form Instruksi Penugasan Baru</h3>
+<form id="formPenugasan">
+<div class="form-group">
+<label>Pilih Mandor</label>
+<select id="pilihMandor" class="form-control" required><option value="" disabled selected>-- Pilih Mandor... --</option></select>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Kecamatan</label><input type="text" id="kecamatan" class="form-control" required></div>
+<div class="form-group"><label>Kota / Kabupaten</label><input type="text" id="kota" class="form-control" required></div>
+</div>
+<div class="form-group"><label>Link Google Maps Lokasi</label><input type="url" id="lokasiDetail" class="form-control" placeholder="https://maps.app.goo.gl/..." required></div>
+<div class="form-group">
+<label>Instruksi Kebutuhan Item</label>
+<div class="form-row-3">
+<select id="namaItem" class="form-control">
+<option value="" disabled selected>-- Memuat Barang... --</option>
+</select>
+<input type="number" id="qtyItem" class="form-control" placeholder="Jumlah (Cth: 10)">
+<select id="unitItem" class="form-control">
+<option value="meter">meter</option><option value="pcs">pcs</option><option value="unit">unit</option><option value="kg">kg</option>
+</select>
+</div>
+<button type="button" class="btn-dark" style="background: #e5e7eb; color: #000; margin-top:10px;" onclick="tambahItem()">+ Tambah Item</button>
+</div>
+<ul id="daftarItemSementara" style="list-style: none; margin-bottom: 20px; font-size: 14px; color: var(--text-muted);"></ul>
+<button type="submit" class="btn-dark">Kirim Instruksi Pekerjaan</button>
+</form>
+</div>
+</section>
+<section id="tab-aktif" class="section-tab">
+<h3 style="margin-bottom: 20px; font-size: 18px;">Pekerjaan Aktif Saat Ini</h3>
+<div class="task-grid" id="containerAktif"><div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-muted);">Memuat data...</div></div>
+</section>
+<section id="tab-review" class="section-tab">
+<h3 style="margin-bottom: 20px; font-size: 18px;">Menunggu & Proses Review</h3>
+<div class="task-grid" id="containerReview"><div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-muted);">Memuat data...</div></div>
+</section>
+<section id="tab-riwayat" class="section-tab">
+<h3 style="margin-bottom: 20px; font-size: 18px;">Riwayat Pekerjaan Selesai</h3>
+<div class="task-grid" id="containerRiwayat"><div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-muted);">Memuat data...</div></div>
+</section>
+</main>
+<div class="modal-overlay" id="modalDetail">
+<div class="modal-box">
+<h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Detail Instruksi Pekerjaan</h3>
+<div id="isiModalDetail" style="font-size: 14px; line-height: 1.6; margin-bottom: 20px;"></div>
+<button class="btn-dark" onclick="document.getElementById('modalDetail').classList.remove('show'); setTimeout(() => document.getElementById('modalDetail').style.display='none', 300)">Tutup</button>
+</div>
+</div>
+<div class="modal-overlay" id="modalReviewTugas">
+<div class="modal-box" style="max-width: 600px;">
+<h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Review Laporan Mandor</h3>
+<div id="isiModalReviewInfo" style="font-size: 14px; line-height: 1.6; margin-bottom: 20px; background: rgba(0,0,0,0.05); padding: 15px; border-radius:12px;"></div>
+<table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+<thead><tr style="background: rgba(0,0,0,0.05);"><th style="padding:10px;text-align:left;">Item</th><th style="padding:10px;">Diminta</th><th style="padding:10px;">Terpakai</th></tr></thead>
+<tbody id="tabelItemReview"></tbody>
+</table>
+<div style="display: flex; gap: 10px;">
+<button class="btn-dark" style="background:#166534;" onclick="prosesReview('selesai')">  ✅   Setujui</button>
+<button class="btn-dark" style="background:#ef4444;" onclick="prosesReview('revisi')">  ❌   Minta Revisi</button>
+</div>
+<button class="btn-dark" style="background:#6b7280; margin-top:10px;" onclick="document.getElementById('modalReviewTugas').classList.remove('show'); setTimeout(() => document.getElementById('modalReviewTugas').style.display='none', 300)">Batal</button>
+</div>
+</div>
+<div class="modal-overlay" id="modalGoal">
+<div class="modal-box">
+<h3 style="margin-bottom: 15px;">Input Month Goals</h3>
+<p style="font-size:12px; color:var(--text-muted); margin-bottom:15px;">Maksimal 4 goals.</p>
+<div id="inputGoalsContainer">
+<input type="text" class="form-control" style="margin-bottom:10px;" placeholder="Goal 1" id="goal1">
+<input type="text" class="form-control" style="margin-bottom:10px;" placeholder="Goal 2" id="goal2">
+<input type="text" class="form-control" style="margin-bottom:10px;" placeholder="Goal 3" id="goal3">
+<input type="text" class="form-control" style="margin-bottom:10px;" placeholder="Goal 4" id="goal4">
+</div>
+<button class="btn-dark" onclick="simpanGoals()">Done</button>
+<button class="btn-cancel" onclick="document.getElementById('modalGoal').classList.remove('show'); setTimeout(() => document.getElementById('modalGoal').style.display='none', 300)">Batal</button>
+</div>
+</div>
+<div class="modal-overlay" id="modalFullChart" style="z-index: 300;">
+<div class="modal-box" style="max-width: 90vw; height: 90vh; display: flex; flex-direction: column;">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+<h3 style="margin: 0;" id="fullChartTitle">Weekly Progress (Laporan Penuh)</h3>
+<button style="background:none; border:none; cursor:pointer; color:var(--text-main);" onclick="tutupFullscreenChart()">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+</button>
+</div>
+<div style="flex-grow: 1; position: relative;">
+<canvas id="fullWeeklyChartCanvas"></canvas>
+</div>
+</div>
+</div>
+<div class="modal-overlay" id="modalUbahSandi">
+<div class="modal-box" style="max-width: 400px;">
+<h3 style="margin-bottom: 10px;">Ubah Kata Sandi</h3>
+<p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">Masukkan kata sandi baru untuk akun Anda (Min. 6 Karakter).</p>
+<input type="password" id="sandiBaru" class="form-control" placeholder="Kata Sandi Baru" style="margin-bottom: 15px;" required>
+<input type="password" id="sandiKonfirmasi" class="form-control" placeholder="Konfirmasi Kata Sandi" style="margin-bottom: 20px;" required>
+<button class="btn-dark" id="btnSimpanSandi" onclick="simpanSandi()" style="margin-top: 0;">Simpan Kata Sandi</button>
+<button class="btn-cancel" onclick="document.getElementById('modalUbahSandi').classList.remove('show'); setTimeout(() => document.getElementById('modalUbahSandi').style.display='none', 300);">Batal</button>
+</div>
+</div>
+<script>
+// 1. Inisialisasi Supabase
+const supabaseUrl = 'https://jibsrfttocyopmclaein.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppYnNyZnR0b2N5b3BtY2xhZWluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwODM3NDksImV4cCI6MjA5NDY1OTc0OX0.5YZyr5C8dL2EJeFVTdUWMNL6uWP5wflWKpnS3fHWEB8';
+const db = window.supabase.createClient(supabaseUrl, supabaseKey);
+let dataMandorCache = {};
+let currentReviewId = null;
+let wkChart = null; 
+let mnChart = null; 
+let fullChart = null; 
+
+let globalPkjData = [];
+let globalItmData = [];
+let curWeeklyPkj = [0,0,0,0,0,0,0];
+let curWeeklyItm = [0,0,0,0,0,0,0];
+let currentWeekRange = '';
+
+// UI Interactions
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('minimized'); }
+function toggleDropdown() { document.getElementById('profileMenu').classList.toggle('show'); }
+window.onclick = function(e) { if(!e.target.closest('.profile-wrapper')) document.getElementById('profileMenu').classList.remove('show'); }
+function toggleTheme() {
+const body = document.body;
+body.classList.toggle('dark-mode');
+const isDark = body.classList.contains('dark-mode');
+document.getElementById('themeText').textContent = isDark ? "Light Mode" : "Dark Mode";
+document.getElementById('themeIcon').innerHTML = isDark ?
+'<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>' : // Sun
+'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>'; // Moon
+// Re-render charts for color contrast
+if(globalPkjData.length > 0) {
+    renderWeeklyChart();
+    if(fullChart) {
+        fullChart.destroy();
+        bukaFullscreenChart(); 
+    }
+    renderChartStatus(parseInt(document.getElementById('monthPercent').textContent));
+} else {
+    muatDataDashboard();
+}
+}
+function gantiTab(tabId, element) {
+document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+if(element) element.classList.add('active');
+document.querySelectorAll('.section-tab').forEach(el => el.style.display = 'none');
+document.getElementById('tab-' + tabId).style.display = 'block';
+if(tabId === 'dashboard') muatDataDashboard();
+if(tabId === 'aktif') muatTugas('pending,revisi', 'containerAktif', true);
+if(tabId === 'review') muatTugas('review', 'containerReview', false);
+if(tabId === 'riwayat') muatTugas('selesai', 'containerRiwayat', true);
+}
+function logout() { window.location.href = 'index.html'; }
+
+// Start Up
+document.addEventListener('DOMContentLoaded', async () => {
+const { data: user } = await db.auth.getUser();
+if(!user || !user.user) { window.location.href = 'index.html'; return; }
+const { data: prof } = await db.from('profiles').select('nama_lengkap').eq('id', user.user.id).single();
+if(prof) {
+const namaPanggilan = prof.nama_lengkap.split(' ')[0];
+document.getElementById('greetingText').textContent = `Hi, ${namaPanggilan}!`;
+}
+await muatDaftarMandor();
+await muatDaftarBarang(); // Memuat data dropdown barang
+muatDataDashboard();
+muatGoals();
+
+if (!document.getElementById('weekPicker').value) {
+    document.getElementById('weekPicker').valueAsDate = new Date();
+}
+});
+
+// Event Listener Kalender Filter
+document.getElementById('weekPicker').addEventListener('change', function(e) {
+    if(e.target.value) {
+        updateChartForWeek(new Date(e.target.value));
+    }
+});
+
+// FUNGSI UBAH KATA SANDI
+function bukaModalSandi() {
+document.getElementById('profileMenu').classList.remove('show');
+const modal = document.getElementById('modalUbahSandi');
+modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
+}
+async function simpanSandi() {
+const p1 = document.getElementById('sandiBaru').value, p2 = document.getElementById('sandiKonfirmasi').value;
+if(p1.length < 6) return alert("Sandi minimal 6 karakter!"); if(p1 !== p2) return alert("Konfirmasi sandi tidak cocok!");
+const btn = document.getElementById('btnSimpanSandi'); btn.textContent = "Menyimpan..."; btn.disabled = true;
+try {
+const { error } = await db.auth.updateUser({ password: p1 });
+if(error) throw error; alert("  ✅     Kata sandi berhasil diubah!");
+document.getElementById('modalUbahSandi').classList.remove('show'); setTimeout(() => document.getElementById('modalUbahSandi').style.display = 'none', 300);
+document.getElementById('sandiBaru').value = ''; document.getElementById('sandiKonfirmasi').value = '';
+} catch(e) { alert("Gagal: " + e.message); } finally { btn.textContent = "Simpan Kata Sandi"; btn.disabled = false; }
+}
+
+async function muatDaftarMandor() {
+const dropdown = document.getElementById('pilihMandor');
+try {
+const { data } = await db.from('profiles').select('id, nama_lengkap').eq('role', 'mandor');
+data.forEach(m => {
+dataMandorCache[m.id] = m.nama_lengkap;
+dropdown.appendChild(new Option(m.nama_lengkap, m.id));
+});
+document.getElementById('dashTotalMandor').textContent = data.length;
+} catch (err) { console.error(err); }
+}
+
+// FUNGSI BARU: Memuat daftar barang dari master_inventori
+async function muatDaftarBarang() {
+    const dropdownItem = document.getElementById('namaItem');
+    try {
+        const { data } = await db.from('master_inventori').select('nama_item').order('nama_item', {ascending: true});
+        dropdownItem.innerHTML = '<option value="" disabled selected>-- Pilih Barang --</option>';
+        if(data) {
+            data.forEach(b => {
+                if(b.nama_item) {
+                    dropdownItem.appendChild(new Option(b.nama_item.trim(), b.nama_item.trim()));
+                }
+            });
+        }
+    } catch (err) { console.error(err); }
+}
+
+// ==========================================
+// TAB 1: DASHBOARD ANALITIK
+// ==========================================
+async function muatDataDashboard() {
+try {
+const { data: pkj } = await db.from('pekerjaan').select('id, status, kecamatan, lokasi_detail, tanggal_selesai, created_at');
+const { data: itm } = await db.from('item_pekerjaan').select('pekerjaan_id, qty_dibutuhkan, qty_digunakan');
+
+const { data: masterInv } = await db.from('master_inventori').select('*').order('nama_item', {ascending: true});
+
+globalPkjData = pkj || [];
+globalItmData = itm || [];
+
+let totSelesaiAll = 0, totAktif = 0, totReview = 0, totSelesaiBulan = 0;
+let totItemMinta = 0, totItemPakai = 0;
+let selesaiArr = [];
+
+globalPkjData.forEach(p => {
+if(p.status === 'selesai') {
+totSelesaiAll++;
+totSelesaiBulan++; 
+selesaiArr.push(p);
+}
+else if(['pending', 'revisi'].includes(p.status)) totAktif++;
+else if(p.status === 'review') totReview++;
+});
+
+selesaiArr.sort((a, b) => new Date(b.tanggal_selesai || b.created_at) - new Date(a.tanggal_selesai || a.created_at));
+let lastProjects = selesaiArr.slice(0, 2);
+
+globalItmData.forEach(i => { totItemMinta += i.qty_dibutuhkan; totItemPakai += i.qty_digunakan; });
+let persenInv = totItemMinta > 0 ? Math.round((totItemPakai/totItemMinta)*100) : 0;
+
+document.getElementById('dashTotalDone').textContent = totSelesaiAll;
+document.getElementById('dashAktif').textContent = totAktif;
+document.getElementById('dashReview').textContent = totReview;
+document.getElementById('dashSelesaiBulan').textContent = totSelesaiBulan;
+document.getElementById('monthPercent').textContent = persenInv + "%";
+document.getElementById('lblPkjSelesai').textContent = totSelesaiBulan;
+document.getElementById('lblItemTerpakai').textContent = totItemPakai;
+if(document.getElementById('lblItemInstruksi')) document.getElementById('lblItemInstruksi').textContent = totItemMinta;
+
+const lpCont = document.getElementById('lastProjectsContainer');
+lpCont.innerHTML = '';
+if(lastProjects.length === 0) lpCont.innerHTML = '<div class="project-card" style="justify-content:center; align-items:center; color:#a1a1aa;">Belum ada riwayat selesai</div>';
+lastProjects.forEach(lp => {
+const tgl = lp.tanggal_selesai ? new Date(lp.tanggal_selesai).toLocaleDateString('id-ID') : 'Selesai';
+const mapLink = lp.lokasi_detail;
+lpCont.innerHTML += `
+<div class="project-card">
+<div>
+<h4 style="font-size:16px; margin-bottom:5px; display:flex; align-items:center; gap:5px;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+${lp.kecamatan}
+</h4>
+<a href="${mapLink}" target="_blank" style="font-size:12px; color:#a1a1aa; text-decoration:underline; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:250px;">Buka Google Maps  ↗ </a>
+</div>
+<div style="font-size:11px; margin-top:20px; display:flex; align-items:center; gap:5px;">
+<div style="width:6px;height:6px;border-radius:50%;background:#16a34a;"></div> Completed (${tgl})
+</div>
+</div>`;
+});
+
+let terpakaiMap = {};
+if (globalItmData && globalItmData.length > 0) {
+    globalItmData.forEach(i => {
+        let nama = i.nama_item ? i.nama_item.trim() : '';
+        if(nama) {
+            if (!terpakaiMap[nama]) terpakaiMap[nama] = 0;
+            terpakaiMap[nama] += (i.qty_digunakan || 0);
+        }
+    });
+}
+
+const tbodyInv = document.getElementById('tabelMonitoringInventori');
+if (masterInv && masterInv.length > 0) {
+    tbodyInv.innerHTML = '';
+    masterInv.forEach((item, index) => {
+        let nama = item.nama_item ? item.nama_item.trim() : '';
+        let stok = item.jumlah_stok || 0;
+        let terpakai = terpakaiMap[nama] || 0;
+        let sisa = stok - terpakai;
+        let sisaColor = sisa < 0 ? 'color: #ef4444; font-weight: bold;' : (sisa === 0 ? 'color: #f59e0b; font-weight: bold;' : 'color: #16a34a; font-weight: bold;');
+
+        tbodyInv.innerHTML += `
+        <tr style="border-bottom: 1px solid var(--border-color);">
+            <td style="padding:12px; text-align:center;">${index + 1}</td>
+            <td style="padding:12px; font-weight:600;">${nama}</td>
+            <td style="padding:12px; text-align:center;">${stok}</td>
+            <td style="padding:12px; text-align:center;">${terpakai}</td>
+            <td style="padding:12px; text-align:center; ${sisaColor}">${sisa}</td>
+        </tr>
+        `;
+    });
+} else {
+    tbodyInv.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--text-muted);">Belum ada data di tabel master_inventori Supabase.</td></tr>';
+}
+
+renderChartStatus(persenInv);
+updateChartForWeek(new Date(document.getElementById('weekPicker').value || new Date()));
+
+} catch (err) { console.error(err); }
+}
+
+function renderChartStatus(persenInv) {
+const isDark = document.body.classList.contains('dark-mode');
+const mainColor = isDark ? '#ffffff' : '#000000';
+const gridColor = isDark ? '#374151' : '#e5e7eb';
+if(mnChart) mnChart.destroy();
+mnChart = new Chart(document.getElementById('monthlyChart'), {
+type: 'doughnut',
+data: { datasets: [{ data: [persenInv, 100-persenInv], backgroundColor: [mainColor, gridColor], borderWidth: 0 }] },
+options: { responsive: true, maintainAspectRatio: false, cutout: '80%', plugins: { tooltip: {enabled:false} } }
+});
+}
+
+function getWeekRange(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1);
+    
+    const monday = new Date(d.setDate(diffToMonday));
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    return { monday, sunday };
+}
+
+function updateChartForWeek(selectedDate) {
+    const { monday, sunday } = getWeekRange(selectedDate);
+    
+    const opt = { day: 'numeric', month: 'short' };
+    currentWeekRange = `${monday.toLocaleDateString('id-ID', opt)} - ${sunday.toLocaleDateString('id-ID', opt)}`;
+    document.getElementById('weekLabel').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> ${currentWeekRange}`;
+    if(document.getElementById('fullChartTitle')) document.getElementById('fullChartTitle').textContent = `Weekly Progress (${currentWeekRange})`;
+
+    curWeeklyPkj = [0, 0, 0, 0, 0, 0, 0]; 
+    curWeeklyItm = [0, 0, 0, 0, 0, 0, 0];
+
+    globalPkjData.forEach(p => {
+        if (p.status === 'selesai' && p.tanggal_selesai) {
+            const tglSelesai = new Date(p.tanggal_selesai);
+            if (tglSelesai >= monday && tglSelesai <= sunday) {
+                let dayIndex = tglSelesai.getDay() - 1; 
+                if (dayIndex === -1) dayIndex = 6; 
+                
+                curWeeklyPkj[dayIndex] += 1;
+
+                const itemsTerkait = globalItmData.filter(i => i.pekerjaan_id === p.id);
+                itemsTerkait.forEach(i => {
+                    curWeeklyItm[dayIndex] += (i.qty_digunakan || 0);
+                });
+            }
+        }
+    });
+
+    renderWeeklyChart();
+
+    if(fullChart) {
+        fullChart.data.datasets[0].data = curWeeklyPkj;
+        fullChart.data.datasets[1].data = curWeeklyItm;
+        fullChart.update();
+    }
+}
+
+function renderWeeklyChart() {
+    const isDark = document.body.classList.contains('dark-mode');
+    const mainColor = isDark ? '#ffffff' : '#000000';
+    const gridColor = isDark ? '#374151' : '#e5e7eb';
+    if(wkChart) wkChart.destroy();
+    wkChart = new Chart(document.getElementById('weeklyChart'), {
+    type: 'line',
+    data: {
+    labels: ['Sen','Sel','Rab','Kam','Jum','Sab','Min'],
+    datasets: [
+    { label: 'Pekerjaan', data: curWeeklyPkj, borderColor: mainColor, backgroundColor: mainColor, tension: 0.4 },
+    { label: 'Item Terpakai', data: curWeeklyItm, borderColor: '#a1a1aa', backgroundColor: '#a1a1aa', tension: 0.4, borderDash: [5,5] }
+    ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x:{grid:{display:false}}, y:{grid:{color:gridColor}, beginAtZero:true} } }
+    });
+}
+
+// FULLSCREEN CHART LOGIC
+function bukaFullscreenChart() {
+const modal = document.getElementById('modalFullChart');
+modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
+const isDark = document.body.classList.contains('dark-mode');
+const mC = isDark ? '#ffffff' : '#000000'; const gC = isDark ? '#374151' : '#e5e7eb';
+if(fullChart) fullChart.destroy();
+fullChart = new Chart(document.getElementById('fullWeeklyChartCanvas'), {
+type: 'line', data: { labels: ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'], datasets: [
+{ label: 'Total Pekerjaan Selesai', data: curWeeklyPkj, borderColor: mC, backgroundColor: mC, tension: 0.4, borderWidth: 3 },
+{ label: 'Total Item Terpakai', data: curWeeklyItm, borderColor: '#a1a1aa', backgroundColor: '#a1a1aa', tension: 0.4, borderDash: [5,5], borderWidth: 3 }
+]}, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: {color: mC} } }, scales: { x:{ticks:{color:mC}, grid:{display:false}}, y:{ticks:{color:mC}, grid:{color:gC}, beginAtZero:true} } }
+});
+}
+function tutupFullscreenChart() {
+document.getElementById('modalFullChart').classList.remove('show');
+setTimeout(() => document.getElementById('modalFullChart').style.display='none', 300);
+}
+// ==========================================
+// FITUR MONTH GOALS (LocalStorage)
+// ==========================================
+function muatGoals() {
+let goals = JSON.parse(localStorage.getItem('adminGoals')) || [{t:"Tingkatkan efisiensi 20%", d:false}];
+renderGoalsList(goals);
+}
+function renderGoalsList(goals) {
+const cont = document.getElementById('goalsContainer');
+cont.innerHTML = '';
+goals.forEach((g, i) => {
+cont.innerHTML += `
+<label class="goal-item ${g.d ? 'done' : ''}">
+<input type="checkbox" ${g.d ? 'checked' : ''} onchange="toggleGoal(${i})">
+<span>${g.t}</span>
+</label>
+`;
+});
+}
+function bukaModalGoal() {
+let goals = JSON.parse(localStorage.getItem('adminGoals')) || [];
+for(let i=0; i<4; i++) { document.getElementById('goal'+(i+1)).value = goals[i] ? goals[i].t : ''; }
+const modal = document.getElementById('modalGoal');
+modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
+}
+function simpanGoals() {
+let newGoals = [];
+let oldGoals = JSON.parse(localStorage.getItem('adminGoals')) || [];
+for(let i=1; i<=4; i++) {
+let val = document.getElementById('goal'+i).value.trim();
+if(val) {
+let wasDone = oldGoals[i-1] ? oldGoals[i-1].d : false;
+newGoals.push({t: val, d: wasDone});
+}
+}
+localStorage.setItem('adminGoals', JSON.stringify(newGoals));
+renderGoalsList(newGoals);
+document.getElementById('modalGoal').classList.remove('show'); setTimeout(() => document.getElementById('modalGoal').style.display='none', 300);
+}
+function toggleGoal(index) {
+let goals = JSON.parse(localStorage.getItem('adminGoals'));
+goals[index].d = !goals[index].d;
+localStorage.setItem('adminGoals', JSON.stringify(goals));
+renderGoalsList(goals);
+}
+// ==========================================
+// TAB 2: BERI TUGAS BARU
+// ==========================================
+function tambahItem() {
+const nama = document.getElementById('namaItem').value, qty = document.getElementById('qtyItem').value, unit = document.getElementById('unitItem').value;
+if (nama && qty) {
+const li = document.createElement('li');
+li.style.cssText = "padding:8px 0; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between;";
+li.setAttribute('data-nama', `${nama} (${unit})`); li.setAttribute('data-qty', qty);
+li.innerHTML = `<span>   ✔️    ${nama}</span> <b>${qty} ${unit}</b>`;
+document.getElementById('daftarItemSementara').appendChild(li);
+document.getElementById('namaItem').value = ''; document.getElementById('qtyItem').value = '';
+}
+}
+document.getElementById('formPenugasan').addEventListener('submit', async (e) => {
+e.preventDefault();
+const btn = document.querySelector('button[type="submit"]'); btn.textContent = 'Memproses...'; btn.disabled = true;
+// Gabung Kecamatan dan Kota
+const kec = document.getElementById('kecamatan').value;
+const kota = document.getElementById('kota').value;
+const gabunganKecamatan = `${kec}, ${kota}`;
+try {
+const { data: user } = await db.auth.getUser();
+const { data: pkj, error } = await db.from('pekerjaan').insert([{
+admin_id: user.user.id, mandor_id: document.getElementById('pilihMandor').value,
+kecamatan: gabunganKecamatan, lokasi_detail: document.getElementById('lokasiDetail').value, status: 'pending'
+}]).select();
+if(error) throw error;
+const items = Array.from(document.getElementById('daftarItemSementara').children).map(li => ({
+pekerjaan_id: pkj[0].id, nama_item: li.getAttribute('data-nama'), qty_dibutuhkan: parseInt(li.getAttribute('data-qty')), qty_digunakan: 0
+}));
+await db.from('item_pekerjaan').insert(items);
+alert("   ✅    Tugas terkirim dan otomatis masuk ke Aktif!");
+document.getElementById('formPenugasan').reset(); document.getElementById('daftarItemSementara').innerHTML = '';
+} catch (err) { alert(err.message); } finally { btn.textContent = 'Kirim Instruksi Pekerjaan'; btn.disabled = false; }
+});
+// ==========================================
+// TAB PEKERJAAN (Aktif, Review, Riwayat)
+// ==========================================
+async function muatTugas(statusList, containerId, isDetail) {
+const cont = document.getElementById(containerId);
+cont.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-muted);">Memuat data...</div>';
+try {
+const arrStatus = statusList.split(',');
+const { data } = await db.from('pekerjaan').select('*').in('status', arrStatus).order('created_at', {ascending:false});
+if (!data || data.length === 0) return cont.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-muted);">Tidak ada data pekerjaan.</div>';
+cont.innerHTML = '';
+data.forEach(t => {
+const mName = dataMandorCache[t.mandor_id] || 'Mandor';
+const tgl = new Date(t.created_at).toLocaleDateString('id-ID');
+let badge = ''; let actionBtn = '';
+if(t.status === 'pending') badge = '<div class="task-badge">Dalam Proses</div>';
+else if(t.status === 'revisi') badge = '<div class="task-badge" style="background:#7f1d1d; color:#fca5a5;">Sedang Direvisi</div>';
+else if(t.status === 'review') {
+badge = '<div class="task-badge" style="background:#1e3a8a; color:#bfdbfe;">Menunggu Review</div>';
+actionBtn = `<button class="btn-outline" onclick="bukaReview('${t.id}','${mName}','${t.kecamatan}','${t.link_drive_evidence}')">Review Pekerjaan</button>`;
+} else if(t.status === 'selesai') {
+badge = '<div class="task-badge" style="background:#14532d; color:#bbf7d0;">Selesai</div>';
+}
+if(isDetail && t.status !== 'review') actionBtn = `<button class="btn-outline" onclick="bukaDetail('${t.id}','${mName}','${t.kecamatan}','${t.lokasi_detail}')">Lihat detail -></button>`;
+cont.innerHTML += `
+<div class="task-card">
+${badge}
+<div class="task-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> ${t.kecamatan}</div>
+<div class="task-detail"><b>Pekerja:</b> ${mName}</div>
+<div class="task-detail" style="margin-top:5px; margin-bottom:5px;"><span><b>Lokasi:</b> <a href="${t.lokasi_detail}" target="_blank" style="color:#a1a1aa; text-decoration:underline; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; vertical-align:bottom;">Buka Google Maps  ↗ </a></span></div>
+<div class="task-detail"><b>Diinstruksikan:</b> ${tgl}</div>
+${actionBtn}
+</div>
+`;
+});
+} catch(e) { console.error(e); }
+}
+async function bukaDetail(id, mName, kec, lok) {
+const modal = document.getElementById('modalDetail');
+modal.style.display='flex'; setTimeout(() => modal.classList.add('show'), 10);
+document.getElementById('isiModalDetail').innerHTML = `<b>Pekerja:</b> ${mName}<br><b>Wilayah:</b> ${kec}<br><b>Titik:</b> <a href="${lok}" target="_blank" style="color:#3b82f6; text-decoration:underline;">Buka Google Maps  ↗ </a><br><br><b>Item Diinstruksikan:</b><br><ul id="listDetailItem" style="margin-left:20px;">Memuat...</ul>`;
+const { data } = await db.from('item_pekerjaan').select('*').eq('pekerjaan_id', id);
+if(data) document.getElementById('listDetailItem').innerHTML = data.map(i => `<li>${i.qty_dibutuhkan}x ${i.nama_item} (Terpakai: ${i.qty_digunakan})</li>`).join('');
+}
+async function bukaReview(id, mName, kec, link) {
+currentReviewId = id;
+const modal = document.getElementById('modalReviewTugas');
+modal.style.display='flex'; setTimeout(() => modal.classList.add('show'), 10);
+document.getElementById('isiModalReviewInfo').innerHTML = `<b>Pekerja:</b> ${mName}<br><b>Wilayah:</b> ${kec}<br><b>Bukti Laporan:</b> <a href="${link}" target="_blank" style="color:#3b82f6;">Buka G-Drive    ↗   </a>`;
+const { data } = await db.from('item_pekerjaan').select('*').eq('pekerjaan_id', id);
+if(data) document.getElementById('tabelItemReview').innerHTML = data.map(i => `<tr><td style="padding:10px; border-top:1px solid var(--border-color);">${i.nama_item}</td><td style="padding:10px; border-top:1px solid var(--border-color); text-align:center;">${i.qty_dibutuhkan}</td><td style="padding:10px; border-top:1px solid var(--border-color); text-align:center; font-weight:bold; color:${i.qty_digunakan > i.qty_dibutuhkan ? '#ef4444':'#16a34a'};">${i.qty_digunakan}</td></tr>`).join('');
+}
+async function prosesReview(keputusan) {
+let d = { status: keputusan };
+if(keputusan === 'selesai') d.tanggal_selesai = new Date().toISOString();
+if(keputusan === 'revisi') {
+const al = prompt("Alasan revisi:"); if(!al) return; d.catatan_revisi = al;
+}
+try {
+await db.from('pekerjaan').update(d).eq('id', currentReviewId);
+alert(keputusan === 'selesai' ? "Disetujui. Pindah ke Riwayat Selesai." : "Dikembalikan untuk revisi.");
+document.getElementById('modalReviewTugas').classList.remove('show'); setTimeout(() => document.getElementById('modalReviewTugas').style.display='none', 300);
+gantiTab('review', document.querySelectorAll('.nav-item')[3]); // Refresh
+} catch(e) { alert(e.message); }
+}
+</script>
+</body>
+</html>

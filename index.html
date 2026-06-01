@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - Portal ATS</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+body { background-color: #e5e7eb; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; position: relative; }
+
+/* Dekorasi Kaca */
+.shape { position: absolute; border-radius: 50%; filter: blur(60px); z-index: -1; }
+.shape-1 { width: 400px; height: 400px; background: #d1d5db; top: -100px; left: -100px; }
+.shape-2 { width: 300px; height: 300px; background: #ffffff; bottom: -50px; right: -50px; }
+
+/* Panel Utama */
+.glass-panel { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 24px;
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); padding: 40px; width: 100%; max-width: 400px; z-index: 1; }
+.login-header { text-align: center; margin-bottom: 30px; }
+.login-header h2 { color: #111827; font-size: 28px; font-weight: 700; }
+.login-header p { color: #6b7280; font-size: 14px; margin-top: 5px; }
+
+/* Input Form */
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; color: #374151; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.input-group input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid #d1d5db; background: rgba(255, 255, 255, 0.9);
+font-size: 14px; color: #111827; outline: none; transition: all 0.3s ease; }
+.input-group input:focus { border-color: #111827; box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1); }
+
+/* Modifikasi Layout Password */
+.password-wrapper { position: relative; display: flex; align-items: center; }
+.password-wrapper input { padding-right: 45px; }
+
+/* Tombol Mata yang Diperbaiki */
+.toggle-password { position: absolute; right: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%;
+z-index: 10; }
+.toggle-password:hover { background-color: rgba(0,0,0,0.05); }
+.toggle-password svg { pointer-events: none; } /* Mencegah klik nyangkut di SVG */
+
+/* Fitur Ingat Saya & Lupa Sandi (BARU) */
+.actions-wrapper { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; margin-top: -5px; }
+.remember-wrapper { display: flex; align-items: center; gap: 8px; }
+.remember-wrapper input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #111827; }
+.remember-wrapper label { font-size: 13px; color: #4b5563; cursor: pointer; user-select: none; font-weight: 500; }
+.forgot-password { font-size: 13px; font-weight: 600; color: #111827; text-decoration: none; cursor: pointer; transition: color 0.3s; }
+.forgot-password:hover { text-decoration: underline; color: #374151; }
+
+/* Tombol Login */
+.btn-dark { width: 100%; padding: 14px; border-radius: 12px; border: none; background-color: #111827; color: #ffffff; font-size: 16px; font-weight: 600; cursor: pointer;
+transition: background-color 0.3s ease; margin-top: 10px; display: flex; justify-content: center; align-items: center; }
+.btn-dark:hover { background-color: #374151; }
+.btn-dark:disabled { background-color: #9ca3af; cursor: not-allowed; }
+
+/* Modal Lupa Kata Sandi (BARU) */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 200; opacity: 0; transition: opacity 0.3s ease; }
+.modal-overlay.show { display: flex; opacity: 1; }
+.modal-box { background: #ffffff; padding: 30px; border-radius: 24px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); transform: scale(0.95); transition: transform 0.3s ease; text-align: center; }
+.modal-overlay.show .modal-box { transform: scale(1); }
+.modal-box h3 { font-size: 20px; color: #111827; margin-bottom: 10px; font-weight: 700; }
+.modal-box p { font-size: 13px; color: #6b7280; margin-bottom: 20px; line-height: 1.5; }
+.modal-box input { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid #d1d5db; font-size: 14px; margin-bottom: 15px; outline: none; }
+.modal-box input:focus { border-color: #111827; }
+.btn-cancel { background: transparent; color: #111827; border: 1px solid #e5e7eb; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; width: 100%; transition: 0.3s; margin-top: 10px; }
+.btn-cancel:hover { background: #f3f4f6; }
+</style>
+</head>
+<body>
+<div class="shape shape-1"></div>
+<div class="shape shape-2"></div>
+
+<div class="login-container glass-panel">
+    <div class="login-header">
+        <h2>Portal ATS</h2>
+        <p>Silakan masuk ke akun Anda</p>
+    </div>
+
+    <div>
+        <div class="input-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="contoh@ats.com" autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <label for="password">Password</label>
+            <div class="password-wrapper">
+                <input type="password" id="password" placeholder="Masukkan password">
+                <div class="toggle-password" id="btnToggle">
+                    <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="actions-wrapper">
+            <div class="remember-wrapper">
+                <input type="checkbox" id="rememberMe">
+                <label for="rememberMe">Ingat Saya</label>
+            </div>
+            <a class="forgot-password" onclick="bukaModalLupaSandi()">Lupa Kata Sandi?</a>
+        </div>
+
+        <button type="button" id="btnLogin" class="btn-dark">Masuk</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalLupaSandi">
+    <div class="modal-box">
+        <h3>Pemulihan Kata Sandi</h3>
+        <p>Masukkan alamat email Anda untuk menerima tautan pemulihan kata sandi.</p>
+        <input type="email" id="emailPemulihan" placeholder="contoh@ats.com" required>
+        <button type="button" class="btn-dark" id="btnKirimPemulihan" style="margin-top:0;">Kirim Tautan</button>
+        <button type="button" class="btn-cancel" onclick="tutupModalLupaSandi()">Batal</button>
+    </div>
+</div>
+
+<script>
+// Memastikan HTML selesai dirender sebelum JS bekerja
+document.addEventListener('DOMContentLoaded', () => {
+
+console.log("Sistem bersiap...");
+// ==========================================
+// 1. FITUR TOGGLE PASSWORD
+// ==========================================
+const btnToggle = document.getElementById('btnToggle');
+const passInput = document.getElementById('password');
+const emailInput = document.getElementById('email');
+const rememberCheckbox = document.getElementById('rememberMe');
+const eyeOpen = document.getElementById('eye-open');
+const eyeClosed = document.getElementById('eye-closed');
+
+btnToggle.addEventListener('click', () => {
+    if (passInput.type === 'password') {
+        passInput.type = 'text';
+        eyeOpen.style.display = 'none';
+        eyeClosed.style.display = 'block';
+    } else {
+        passInput.type = 'password';
+        eyeOpen.style.display = 'block';
+        eyeClosed.style.display = 'none';
+    }
+});
+
+// ==========================================
+// MENGISI DATA JIKA "INGAT SAYA" SEBELUMNYA AKTIF
+// ==========================================
+if (localStorage.getItem('atsSavedEmail')) {
+    emailInput.value = localStorage.getItem('atsSavedEmail');
+    passInput.value = localStorage.getItem('atsSavedPassword');
+    rememberCheckbox.checked = true;
+}
+
+// ==========================================
+// 2. KONEKSI SUPABASE
+// ==========================================
+const supabaseUrl = 'https://jibsrfttocyopmclaein.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppYnNyZnR0b2N5b3BtY2xhZWluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwODM3NDksImV4cCI6MjA5NDY1OTc0OX0.5YZyr5C8dL2EJeFVTdUWMNL6uWP5wflWKpnS3fHWEB8';
+
+if (typeof supabase === 'undefined') {
+    alert("Library Supabase gagal dimuat. Cek koneksi internet.");
+    return; // Menghentikan eksekusi jika Supabase gagal
+}
+
+const db = supabase.createClient(supabaseUrl, supabaseKey);
+
+// ==========================================
+// FITUR MODAL LUPA KATA SANDI & RESET PASSWORD
+// ==========================================
+window.bukaModalLupaSandi = function() {
+    const modal = document.getElementById('modalLupaSandi');
+    modal.style.display = 'flex'; 
+    setTimeout(() => modal.classList.add('show'), 10);
+};
+
+window.tutupModalLupaSandi = function() {
+    document.getElementById('modalLupaSandi').classList.remove('show');
+    setTimeout(() => document.getElementById('modalLupaSandi').style.display = 'none', 300);
+};
+
+document.getElementById('btnKirimPemulihan').addEventListener('click', async () => {
+    const emailPemulihan = document.getElementById('emailPemulihan').value.trim();
+    if (!emailPemulihan) {
+        alert("Harap masukkan alamat email Anda!");
+        return;
+    }
+    
+    const btnKirim = document.getElementById('btnKirimPemulihan');
+    btnKirim.textContent = "Mengirim..."; 
+    btnKirim.disabled = true;
+
+    try {
+        // PERBAIKAN: Logika URL yang lebih aman
+        let path = window.location.pathname;
+        let redirectUrl;
+        
+        if (path.includes('index.html')) {
+            redirectUrl = window.location.origin + path.replace('index.html', 'reset-sandi.html');
+        } else {
+            // Menangani kasus URL http://127.0.0.1:5500/ (tanpa index.html)
+            const basePath = path.endsWith('/') ? path : path + '/';
+            redirectUrl = window.location.origin + basePath + 'reset-sandi.html';
+        }
+        
+        const { data, error } = await db.auth.resetPasswordForEmail(emailPemulihan, {
+            redirectTo: redirectUrl
+        });
+
+        if (error) throw error;
+        
+        alert("✅ Tautan pemulihan telah dikirim ke email Anda! Silakan periksa kotak masuk atau folder spam.");
+        tutupModalLupaSandi();
+        document.getElementById('emailPemulihan').value = '';
+    } catch (error) {
+        alert("Gagal mengirim pemulihan: " + error.message);
+    } finally {
+        btnKirim.textContent = "Kirim Tautan"; 
+        btnKirim.disabled = false;
+    }
+});
+
+
+// ==========================================
+// 3. FITUR LOGIN & REDIRECT
+// ==========================================
+const btnLogin = document.getElementById('btnLogin');
+
+btnLogin.addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = passInput.value.trim();
+    if (!email || !password) {
+        alert("Harap isi Email dan Password!");
+        return;
+    }
+    // Ubah status tombol
+    btnLogin.textContent = 'Memeriksa...';
+    btnLogin.disabled = true;
+    try {
+        // A: Autentikasi
+        const { data: authData, error: authError } = await db.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+        if (authError) throw authError;
+
+        // Simpan atau Hapus kredensial berdasarkan centang checkbox
+        if (rememberCheckbox.checked) {
+            localStorage.setItem('atsSavedEmail', email);
+            localStorage.setItem('atsSavedPassword', password);
+        } else {
+            localStorage.removeItem('atsSavedEmail');
+            localStorage.removeItem('atsSavedPassword');
+        }
+
+        // B: Ambil Role
+        const userId = authData.user.id;
+        const { data: profileData, error: profileError } = await db
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+        if (profileError) throw profileError;
+
+        // C: Arahkan ke halaman
+        if (profileData.role === 'admin') {
+            window.location.href = 'admin.html';
+        } else if (profileData.role === 'mandor') {
+            window.location.href = 'mandor.html';
+        } else {
+            alert("Role tidak dikenali.");
+        }
+    } catch (error) {
+        alert("Gagal masuk: " + error.message);
+    } finally {
+        btnLogin.textContent = 'Masuk';
+        btnLogin.disabled = false;
+    }
+});
+
+console.log("Sistem siap digunakan.");
+});
+</script>
+</body>
+</html>
