@@ -226,6 +226,18 @@ document.getElementById('btnKirimPemulihan').addEventListener('click', async () 
 // ==========================================
 const btnLogin = document.getElementById('btnLogin');
 
+    
+// TAMBAHAN: Fitur login menggunakan tombol ENTER
+[emailInput, passInput].forEach((input) => {
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            btnLogin.click();
+        }
+    });
+});
+
+
 btnLogin.addEventListener('click', async () => {
     const email = document.getElementById('email').value.trim();
     const password = passInput.value.trim();
